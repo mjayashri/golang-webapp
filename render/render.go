@@ -7,29 +7,46 @@ import (
 	"net/http"
 	"path/filepath"
 	"text/template"
+
+	"github.com/mjayashri/go-practice/pkg/config"
+	"github.com/mjayashri/go-practice/pkg/models"
 )
 
 var functions = template.FuncMap{}
 
-func RenderTemplate(w http.ResponseWriter, tmpl string) {
+var app *config.AppConfig
 
-	tc, err := CreateTemplateCache()
+func NewTemplates(a *config.AppConfig) {
+	app = a
+}
 
-	if err != nil {
-		log.Fatal(err)
+func AddDefaultData(td *models.TemplateData) *models.TemplateData {
+	return td
+}
+
+func RenderTemplate(w http.ResponseWriter, tmpl string, td *models.TemplateData) {
+
+	var tc map[string]*template.Template
+
+	if app.UseCache {
+		tc = app.TemplateCache
+	} else {
+		tc, _ = CreateTemplateCache()
 	}
 
 	t, ok := tc[tmpl]
 
 	if !ok {
-		log.Fatal(err)
+		log.Fatal("Couldnot get template from template cache")
 	}
 
 	buf := new(bytes.Buffer)
 
-	_ = t.Execute(buf, nil)
+	td = AddDefaultData(td)
 
-	_, err = buf.WriteTo(w)
+	_ = t.Execute(buf, td)
+
+	_, err := buf.WriteTo(w)
 
 	if err != nil {
 		fmt.Println("Error writing to buffer", w)
@@ -55,13 +72,15 @@ func CreateTemplateCache() (map[string]*template.Template, error) {
 		}
 
 		matches, err := filepath.Glob("./templates/*.layout.html")
+		if err != nil {
+			return myCache, err
+		}
 
 		if len(matches) > 0 {
 			ts, err = ts.ParseGlob("./templates/*.layout.html")
-		}
-
-		if err != nil {
-			return myCache, err
+			if err != nil {
+				return myCache, err
+			}
 		}
 
 		myCache[name] = ts
